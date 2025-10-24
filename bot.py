@@ -2,30 +2,24 @@ import logging
 import asyncio
 from typing import Optional, Dict
 from dataclasses import dataclass
-import uuid
 from datetime import datetime
 import os
-
-try:
-    import ssl
-except ModuleNotFoundError as e:
-    raise RuntimeError('Модуль ssl не найден. Убедитесь, что Python с поддержкой SSL установлен.') from e
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # ------------------- Настройки -------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-ORDERS_CHANNEL_ID = -1002993312286  # Канал для заказов
-PRODUCTS_CHANNEL_ID = -1003175183010  # Канал для публикации товаров
-ADMIN_ID = 1390211018  # Только этот ID может добавлять товары
+BOT_TOKEN = os.environ.get('BOT_TOKEN')  # Установите токен через переменные окружения
+ORDERS_CHANNEL_ID = -1002993312286      # Канал для заказов
+PRODUCTS_CHANNEL_ID = -1003175183010    # Канал для публикации товаров
+ADMIN_ID = 1390211018                   # Только этот ID может добавлять товары
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
@@ -71,7 +65,7 @@ class OrderStates(StatesGroup):
     payment_method = State()
     confirm = State()
 
-# ------------------- Проверка на владельца -------------------
+# ------------------- Проверка владельца -------------------
 def owner_only(func):
     async def wrapper(message: types.Message, state: FSMContext):
         if message.from_user.id != ADMIN_ID:
@@ -80,12 +74,12 @@ def owner_only(func):
         await func(message, state)
     return wrapper
 
-# ------------------- Пример хендлера (Старт) -------------------
+# ------------------- Хендлеры -------------------
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Привет! Бот запущен и готов к работе ✅")
+    await message.answer("Привет! Бот запущен ✅")
 
-# ------------------- Пример отправки сообщения в канал -------------------
+# Пример отправки уведомления о заказе
 async def send_order_notification(order: Order):
     product = PRODUCTS.get(order.product_id)
     if not product:
@@ -102,20 +96,23 @@ async def send_order_notification(order: Order):
     )
     await bot.send_message(chat_id=ORDERS_CHANNEL_ID, text=text, parse_mode='HTML')
 
-# ------------------- Запуск бота -------------------
+# ------------------- Основной запуск бота -------------------
 async def main():
     logger.info("Бот запущен")
-    await dp.start_polling(bot, skip_updates=True)  # ← skip_updates=True предотвращает ConflictError
+    # skip_updates=True пропускает старые сообщения и предотвращает ConflictError
+    await dp.start_polling(bot, skip_updates=True)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = None
 
     if loop and loop.is_running():
-        # Если цикл уже существует (например, в IDE), создаем задачу
+        # Если цикл уже есть (например, IDE), запускаем как задачу
         loop.create_task(main())
     else:
         # Иначе запускаем стандартно
         asyncio.run(main())
+
+
