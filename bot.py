@@ -119,5 +119,3 @@ if __name__ == '__main__':
     else:
         # Иначе запускаем стандартно
         asyncio.run(main())
-
-
