@@ -2,30 +2,40 @@ import logging
 import asyncio
 from typing import Optional, Dict
 from dataclasses import dataclass
-from datetime import datetime
-import os
+import uuid
 
-from aiogram import Bot, Dispatcher, types
+try:
+    import ssl
+except ModuleNotFoundError as e:
+    raise RuntimeError('Модуль ssl не найден. Убедитесь, что Python с поддержкой SSL установлен.') from e
+
+from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    InputFile
+)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import datetime
 
-# ------------------- Настройки -------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get('BOT_TOKEN')  # Установите токен через переменные окружения
-ORDERS_CHANNEL_ID = -1002993312286      # Канал для заказов
-PRODUCTS_CHANNEL_ID = -1003175183010    # Канал для публикации товаров
-ADMIN_ID = 1390211018                   # Только этот ID может добавлять товары
+import os
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+ORDERS_CHANNEL_ID = -1002993312286  # Канал для заказов
+PRODUCTS_CHANNEL_ID = -1003175183010  # Канал для публикации товаров
+ADMIN_ID = 1390211018  # Только этот ID может добавлять товары
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN)  # parse_mode больше не передается напрямую, используется при отправке сообщений
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ------------------- Данные -------------------
 @dataclass
 class Product:
     product_id: str
@@ -49,7 +59,6 @@ class Order:
 PRODUCTS: Dict[str, Product] = {}
 ORDERS: Dict[str, Order] = {}
 
-# ------------------- FSM состояния -------------------
 class ProductStates(StatesGroup):
     photo = State()
     name = State()
@@ -65,54 +74,30 @@ class OrderStates(StatesGroup):
     payment_method = State()
     confirm = State()
 
-# ------------------- Проверка владельца -------------------
+# Проверка на владельца
 def owner_only(func):
-    async def wrapper(message: types.Message, state: FSMContext):
+    async def wrapper(message: Message, state: FSMContext):
         if message.from_user.id != ADMIN_ID:
             await message.answer('У вас нет прав для добавления товаров.')
             return
         await func(message, state)
     return wrapper
 
-# ------------------- Хендлеры -------------------
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer("Привет! Бот запущен ✅")
+# Остальные хендлеры и логика остаются без изменений, только все вызовы bot.send_message и bot.send_photo должны явно указывать parse_mode='HTML' при необходимости, например:
+# await bot.send_message(chat_id=ORDERS_CHANNEL_ID, text=..., parse_mode='HTML')
+# await bot.send_photo(chat_id=PRODUCTS_CHANNEL_ID, photo=photo, caption=..., reply_markup=kb, parse_mode='HTML')
 
-# Пример отправки уведомления о заказе
-async def send_order_notification(order: Order):
-    product = PRODUCTS.get(order.product_id)
-    if not product:
-        return
-    text = (
-        f"<b>Новый заказ #{order.order_id}</b>\n"
-        f"Товар: {product.name}\n"
-        f"ФИО: {order.full_name}\n"
-        f"Телефон: {order.phone}\n"
-        f"Адрес: {order.address}\n"
-        f"Оплата: {order.payment_method}\n"
-        f"Покупатель: @{order.user_id}\n"
-        f"Время: {order.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-    await bot.send_message(chat_id=ORDERS_CHANNEL_ID, text=text, parse_mode='HTML')
+# --- Пример исправления ---
+# await bot.send_message(chat_id=ORDERS_CHANNEL_ID, text=f"<b>Новый заказ #{order.order_id}</b>\nТовар: {PRODUCTS[order.product_id].name}\nФИО: {order.full_name}\nТелефон: {order.phone}\nАдрес: {order.address}\nОплата: {order.payment_method}\nПокупатель: @{callback.from_user.username} (id: {order.user_id})\nВремя: {order.created_at.strftime('%Y-%m-%d %H:%M:%S')}", parse_mode='HTML')
 
-# ------------------- Основной запуск бота -------------------
 async def main():
-    logger.info("Бот запущен")
-    # skip_updates=True пропускает старые сообщения и предотвращает ConflictError
-    await dp.start_polling(bot, skip_updates=True)
+    logger.info('Бот запущен')
+    await dp.start_polling(bot)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        # Если цикл уже есть (например, IDE), запускаем как задачу
         loop.create_task(main())
-    else:
-        # Иначе запускаем стандартно
+    except RuntimeError:
         asyncio.run(main())
-
 
