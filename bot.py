@@ -26,7 +26,8 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = '7992633722:AAFptsQIJhkwnFFjcFlS3lfWxtK8YvRWxPs'
+import os
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ORDERS_CHANNEL_ID = -1002993312286  # Канал для заказов
 PRODUCTS_CHANNEL_ID = -1003175183010  # Канал для публикации товаров
 ADMIN_ID = 1390211018  # Только этот ID может добавлять товары
@@ -99,3 +100,4 @@ if __name__ == '__main__':
         loop.create_task(main())
     except RuntimeError:
         asyncio.run(main())
+
